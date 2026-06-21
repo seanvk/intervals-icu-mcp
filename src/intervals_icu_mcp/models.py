@@ -29,14 +29,28 @@ EventCategory = Literal[
 
 
 class SportSettings(BaseModel):
-    """Sport-specific settings for an athlete."""
+    """Sport-specific settings (thresholds and zones) for a group of activity types.
+
+    Field names match the Intervals.icu API: a settings entry covers several
+    ``types`` (e.g. Run/VirtualRun/TrailRun), threshold HR is ``lthr`` (not
+    ``fthr``), and ``threshold_pace`` is meters/second. HR zones are absolute
+    bpm; power and pace zones are percentages of FTP / threshold pace.
+    """
 
     id: int
-    type: str | None = None
+    types: list[str] | None = None
     ftp: int | None = None
-    fthr: int | None = None
-    pace_threshold: float | None = None
-    swim_threshold: float | None = None
+    indoor_ftp: int | None = None
+    lthr: int | None = None
+    max_hr: int | None = None
+    threshold_pace: float | None = None  # meters per second
+    pace_units: str | None = None
+    hr_zones: list[int] | None = None
+    hr_zone_names: list[str] | None = None
+    power_zones: list[int] | None = None
+    power_zone_names: list[str] | None = None
+    pace_zones: list[float] | None = None
+    pace_zone_names: list[str] | None = None
 
 
 class Athlete(BaseModel):

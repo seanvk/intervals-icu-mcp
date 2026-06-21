@@ -6,7 +6,47 @@ from fastmcp import Context
 
 from ..auth import load_config, validate_credentials
 from ..client import ICUAPIError, ICUClient
+from ..models import SportSettings
 from ..response_builder import ResponseBuilder
+
+
+def _format_pace_per_km(meters_per_sec: float | None) -> str | None:
+    """Format an Intervals pace (meters/second) as min:sec per km."""
+    if not meters_per_sec or meters_per_sec <= 0:
+        return None
+    secs_per_km = 1000 / meters_per_sec
+    return f"{int(secs_per_km // 60)}:{int(secs_per_km % 60):02d} /km"
+
+
+def _sport_settings_summary(settings: SportSettings) -> dict[str, Any]:
+    """Build a readable summary of a sport-settings entry for tool responses."""
+    info: dict[str, Any] = {"id": settings.id, "types": settings.types}
+
+    if settings.ftp is not None:
+        info["ftp_watts"] = settings.ftp
+    if settings.indoor_ftp is not None:
+        info["indoor_ftp_watts"] = settings.indoor_ftp
+    if settings.lthr is not None:
+        info["lthr_bpm"] = settings.lthr
+    if settings.max_hr is not None:
+        info["max_hr_bpm"] = settings.max_hr
+    if settings.threshold_pace is not None:
+        info["threshold_pace"] = _format_pace_per_km(settings.threshold_pace)
+        info["threshold_pace_m_s"] = settings.threshold_pace
+    if settings.hr_zones:
+        info["hr_zones_bpm"] = settings.hr_zones
+        if settings.hr_zone_names:
+            info["hr_zone_names"] = settings.hr_zone_names
+    if settings.pace_zones:
+        info["pace_zones_pct"] = settings.pace_zones
+        if settings.pace_zone_names:
+            info["pace_zone_names"] = settings.pace_zone_names
+    if settings.power_zones:
+        info["power_zones_pct"] = settings.power_zones
+        if settings.power_zone_names:
+            info["power_zone_names"] = settings.power_zone_names
+
+    return info
 
 
 async def get_sport_settings(
@@ -32,38 +72,9 @@ async def get_sport_settings(
                     {"message": "No sport settings found"}, metadata={"count": 0}
                 )
 
-            settings_data: list[dict[str, Any]] = []
-
-            for settings in settings_list:
-                sport_info: dict[str, Any] = {
-                    "id": settings.id,
-                    "type": settings.type,
-                }
-
-                # Power settings (cycling)
-                if settings.ftp is not None:
-                    sport_info["ftp_watts"] = settings.ftp
-
-                # Heart rate settings
-                if settings.fthr is not None:
-                    sport_info["fthr_bpm"] = settings.fthr
-
-                # Pace settings (running/swimming)
-                if settings.pace_threshold is not None:
-                    # Convert to min:sec per km
-                    pace_secs = settings.pace_threshold * 60
-                    minutes = int(pace_secs // 60)
-                    seconds = int(pace_secs % 60)
-                    sport_info["pace_threshold"] = f"{minutes}:{seconds:02d} /km"
-
-                if settings.swim_threshold is not None:
-                    # Convert to min:sec per 100m
-                    swim_secs = settings.swim_threshold * 60
-                    minutes = int(swim_secs // 60)
-                    seconds = int(swim_secs % 60)
-                    sport_info["swim_threshold"] = f"{minutes}:{seconds:02d} /100m"
-
-                settings_data.append(sport_info)
+            settings_data: list[dict[str, Any]] = [
+                _sport_settings_summary(settings) for settings in settings_list
+            ]
 
             return ResponseBuilder.build_response(
                 {"sport_settings": settings_data},
@@ -126,28 +137,8 @@ async def update_sport_settings(
 
             settings = await client.update_sport_settings(sport_id, settings_data)
 
-            result: dict[str, Any] = {
-                "id": settings.id,
-                "type": settings.type,
-            }
-
-            if settings.ftp is not None:
-                result["ftp_watts"] = settings.ftp
-            if settings.fthr is not None:
-                result["fthr_bpm"] = settings.fthr
-            if settings.pace_threshold is not None:
-                pace_secs = settings.pace_threshold * 60
-                minutes = int(pace_secs // 60)
-                seconds = int(pace_secs % 60)
-                result["pace_threshold"] = f"{minutes}:{seconds:02d} /km"
-            if settings.swim_threshold is not None:
-                swim_secs = settings.swim_threshold * 60
-                minutes = int(swim_secs // 60)
-                seconds = int(swim_secs % 60)
-                result["swim_threshold"] = f"{minutes}:{seconds:02d} /100m"
-
             return ResponseBuilder.build_response(
-                result,
+                _sport_settings_summary(settings),
                 metadata={
                     "type": "sport_settings_updated",
                     "message": "Sport settings updated successfully",
@@ -248,28 +239,8 @@ async def create_sport_settings(
 
             settings = await client.create_sport_settings(settings_data)
 
-            result: dict[str, Any] = {
-                "id": settings.id,
-                "type": settings.type,
-            }
-
-            if settings.ftp is not None:
-                result["ftp_watts"] = settings.ftp
-            if settings.fthr is not None:
-                result["fthr_bpm"] = settings.fthr
-            if settings.pace_threshold is not None:
-                pace_secs = settings.pace_threshold * 60
-                minutes = int(pace_secs // 60)
-                seconds = int(pace_secs % 60)
-                result["pace_threshold"] = f"{minutes}:{seconds:02d} /km"
-            if settings.swim_threshold is not None:
-                swim_secs = settings.swim_threshold * 60
-                minutes = int(swim_secs // 60)
-                seconds = int(swim_secs % 60)
-                result["swim_threshold"] = f"{minutes}:{seconds:02d} /100m"
-
             return ResponseBuilder.build_response(
-                result,
+                _sport_settings_summary(settings),
                 metadata={
                     "type": "sport_settings_created",
                     "message": "Sport settings created successfully",
