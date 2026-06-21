@@ -10,6 +10,24 @@ from ..client import ICUAPIError, ICUClient
 from ..response_builder import ResponseBuilder
 
 
+def _normalize_event_date(value: str) -> str:
+    """Validate an event date and normalize it to the form the Intervals API requires.
+
+    Accepts either a bare ``YYYY-MM-DD`` date or a full ``YYYY-MM-DDTHH:MM:SS``
+    datetime. A bare date gets ``T00:00:00`` appended, because the Intervals
+    ``start_date_local`` field rejects a date with no time component. Raises
+    ``ValueError`` (or ``TypeError`` for non-string input) on anything else.
+    """
+    # Fast path: bare date -> append midnight.
+    try:
+        datetime.strptime(value, "%Y-%m-%d")
+        return f"{value}T00:00:00"
+    except ValueError:
+        pass
+    # Otherwise accept a full ISO-8601 datetime and re-emit it without offset/microseconds.
+    return datetime.fromisoformat(value).strftime("%Y-%m-%dT%H:%M:%S")
+
+
 async def create_event(
     start_date: Annotated[str, "Start date in YYYY-MM-DD format"],
     name: Annotated[str, "Event name"],
@@ -50,10 +68,10 @@ async def create_event(
             error_type="validation_error",
         )
 
-    # Validate date format
+    # Validate and normalize date
     try:
-        datetime.strptime(start_date, "%Y-%m-%d")
-    except ValueError:
+        start_date_local = _normalize_event_date(start_date)
+    except (ValueError, TypeError):
         return ResponseBuilder.build_error_response(
             "Invalid date format. Please use YYYY-MM-DD format.",
             error_type="validation_error",
@@ -62,7 +80,7 @@ async def create_event(
     try:
         # Build event data
         event_data: dict[str, Any] = {
-            "start_date_local": start_date,
+            "start_date_local": start_date_local,
             "name": name,
             "category": category.upper(),
         }
@@ -145,11 +163,12 @@ async def update_event(
     assert ctx is not None
     config: ICUConfig = ctx.get_state("config")
 
-    # Validate date format if provided
+    # Validate and normalize date if provided
+    start_date_local: str | None = None
     if start_date:
         try:
-            datetime.strptime(start_date, "%Y-%m-%d")
-        except ValueError:
+            start_date_local = _normalize_event_date(start_date)
+        except (ValueError, TypeError):
             return ResponseBuilder.build_error_response(
                 "Invalid date format. Please use YYYY-MM-DD format.",
                 error_type="validation_error",
@@ -163,8 +182,8 @@ async def update_event(
             event_data["name"] = name
         if description is not None:
             event_data["description"] = description
-        if start_date is not None:
-            event_data["start_date_local"] = start_date
+        if start_date_local is not None:
+            event_data["start_date_local"] = start_date_local
         if event_type is not None:
             event_data["type"] = event_type
         if duration_seconds is not None:
@@ -322,10 +341,12 @@ async def bulk_create_events(
             # Normalize category to uppercase
             event_data["category"] = event_data["category"].upper()
 
-            # Validate date format
+            # Validate and normalize date
             try:
-                datetime.strptime(event_data["start_date_local"], "%Y-%m-%d")
-            except ValueError:
+                event_data["start_date_local"] = _normalize_event_date(
+                    event_data["start_date_local"]
+                )
+            except (ValueError, TypeError):
                 return ResponseBuilder.build_error_response(
                     f"Event {i}: Invalid date format. Please use YYYY-MM-DD format.",
                     error_type="validation_error",
@@ -452,10 +473,10 @@ async def duplicate_event(
     assert ctx is not None
     config: ICUConfig = ctx.get_state("config")
 
-    # Validate date format
+    # Validate and normalize date
     try:
-        datetime.strptime(new_date, "%Y-%m-%d")
-    except ValueError:
+        new_date = _normalize_event_date(new_date)
+    except (ValueError, TypeError):
         return ResponseBuilder.build_error_response(
             "Invalid date format. Please use YYYY-MM-DD format.",
             error_type="validation_error",
