@@ -17,6 +17,8 @@ from intervals_icu_mcp.tools.activity_analysis import get_activity_streams, get_
 STREAMS_LIST = [
     {"type": "heartrate", "data": [120, 130, 140], "valueType": "java.lang.Integer"},
     {"type": "velocity_smooth", "data": [2.0, 2.1, 2.2]},
+    # latlng: lat in data, lng in data2 (must be recombined into pairs)
+    {"type": "latlng", "data": [45.57, 45.58], "data2": [-122.9, -122.8]},
     {"type": "some_future_type", "data": [1, 2, 3]},  # unknown -> ignored
 ]
 HR_HISTOGRAM_LIST = [
@@ -37,6 +39,7 @@ class TestModelFromApi:
         s = ActivityStreams.from_api(STREAMS_LIST)
         assert s.heartrate == [120, 130, 140]
         assert s.velocity_smooth == [2.0, 2.1, 2.2]
+        assert s.latlng == [[45.57, -122.9], [45.58, -122.8]]
 
     def test_histogram_from_list(self):
         h = Histogram.from_api(HR_HISTOGRAM_LIST)

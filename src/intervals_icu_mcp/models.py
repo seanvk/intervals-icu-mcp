@@ -391,9 +391,23 @@ class ActivityStreams(BaseModel):
 
     @classmethod
     def from_api(cls, data: Any) -> "ActivityStreams":
-        """Build from the Intervals API, which returns a list of {type, data} objects."""
+        """Build from the Intervals API, which returns a list of {type, data} objects.
+
+        The ``latlng`` stream arrives as separate lat (``data``) and lng (``data2``)
+        arrays, so recombine those into ``[lat, lng]`` pairs.
+        """
         if isinstance(data, list):
-            data = {s["type"]: s.get("data") for s in data if isinstance(s, dict) and s.get("type")}
+            streams: dict[str, Any] = {}
+            for s in data:
+                if not (isinstance(s, dict) and s.get("type")):
+                    continue
+                if s["type"] == "latlng":
+                    lat = s.get("data") or []
+                    lng = s.get("data2") or []
+                    streams["latlng"] = [[a, b] for a, b in zip(lat, lng, strict=False)]
+                else:
+                    streams[s["type"]] = s.get("data")
+            data = streams
         return cls(**data)
 
 
