@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> See [AGENTS.md](AGENTS.md) for deployment (NAS), the FastMCP 2.x runtime constraint, and the catalog of known Intervals.icu API quirks. Structured-workout authoring is documented in the `intervals-workout-builder` skill under `.claude/skills/`.
+
 ## Project Overview
 
 This is an MCP (Model Context Protocol) server for Intervals.icu that provides 40+ tools, 1 resource, and 6 prompts for accessing training data, wellness metrics, and performance analysis through Claude and other LLMs.
