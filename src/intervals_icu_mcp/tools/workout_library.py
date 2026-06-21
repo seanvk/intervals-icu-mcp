@@ -80,13 +80,14 @@ async def create_workout(
     description: Annotated[
         str | None,
         "Workout text with optional structured steps Intervals.icu parses server-side. "
-        "Each step is a line '- <label> <duration> <target>'. Duration: 12m, 90s, 1h. "
-        "Target: HR as '70-83% LTHR', power as '60-80%' (%FTP), pace, or a zone like 'Z2' "
-        "(zones default to power when an FTP is set). Repeats: a BLANK LINE, then a line "
-        "'Nx' (e.g. '5x'), then the '- ' step lines to repeat, then another BLANK LINE. "
-        "The surrounding blank lines are required for the repeat to expand. "
-        "HR example:\\n- Warm up 12m 65-83% LTHR\\n\\n5x\\n- Hard 3m 95-100% LTHR\\n"
-        "- Easy 2m 65-70% LTHR\\n\\n- Cool Down 8m 65-70% LTHR",
+        "Step: '- <label> <duration> <target> [cadence]'. Label is optional cue text. "
+        "Duration m=minutes/s=seconds/h=hours (meters are 'mtr'/'km'/'mi', NOT 'm'). "
+        "Targets — HR: '65-83% LTHR' or 'Z2 HR'; power: '60-80%' (%FTP) or 'Z2'; "
+        "pace: '78-82% Pace' or 'Z2 Pace'; 'ramp 50-75%' for a gradual change. A bare "
+        "'Z2' means power when an FTP is set, so use 'Z2 HR' for HR zones. "
+        "Repeats: leave a BLANK LINE before and after the block — 'Nx' (e.g. '5x') then "
+        "the '- ' step lines. HR example:\\n- Warm up 12m 65-83% LTHR\\n\\n5x\\n"
+        "- Hard 3m 95-100% LTHR\\n- Easy 2m 65-70% LTHR\\n\\n- Cool Down 8m 65-70% LTHR",
     ] = None,
     duration_seconds: Annotated[int | None, "Planned duration in seconds"] = None,
     distance_meters: Annotated[float | None, "Planned distance in meters"] = None,
