@@ -18,6 +18,24 @@ def _format_pace_per_km(meters_per_sec: float | None) -> str | None:
     return f"{int(secs_per_km // 60)}:{int(secs_per_km % 60):02d} /km"
 
 
+def _pace_per_km_to_m_s(pace_min_per_km: float | None) -> float | None:
+    """Convert a run/ride threshold pace (min/km, e.g. 4.5 -> 4:30) to meters/second.
+
+    The Intervals API stores ``threshold_pace`` in meters/second regardless of the
+    athlete's display units, so friendly min/km input must be converted before write.
+    """
+    if not pace_min_per_km or pace_min_per_km <= 0:
+        return None
+    return 1000 / (pace_min_per_km * 60)
+
+
+def _pace_per_100m_to_m_s(pace_min_per_100m: float | None) -> float | None:
+    """Convert a swim threshold pace (min/100m, e.g. 1.5 -> 1:30) to meters/second."""
+    if not pace_min_per_100m or pace_min_per_100m <= 0:
+        return None
+    return 100 / (pace_min_per_100m * 60)
+
+
 def _sport_settings_summary(settings: SportSettings) -> dict[str, Any]:
     """Build a readable summary of a sport-settings entry for tool responses."""
     info: dict[str, Any] = {"id": settings.id, "types": settings.types}
@@ -124,11 +142,11 @@ async def update_sport_settings(
             if ftp is not None:
                 settings_data["ftp"] = ftp
             if fthr is not None:
-                settings_data["fthr"] = fthr
+                settings_data["lthr"] = fthr
             if pace_threshold is not None:
-                settings_data["pace_threshold"] = pace_threshold
+                settings_data["threshold_pace"] = _pace_per_km_to_m_s(pace_threshold)
             if swim_threshold is not None:
-                settings_data["swim_threshold"] = swim_threshold
+                settings_data["threshold_pace"] = _pace_per_100m_to_m_s(swim_threshold)
 
             if not settings_data:
                 return ResponseBuilder.build_error_response(
@@ -226,16 +244,16 @@ async def create_sport_settings(
 
     try:
         async with ICUClient(config) as client:
-            settings_data: dict[str, Any] = {"type": sport_type}
+            settings_data: dict[str, Any] = {"types": [sport_type]}
 
             if ftp is not None:
                 settings_data["ftp"] = ftp
             if fthr is not None:
-                settings_data["fthr"] = fthr
+                settings_data["lthr"] = fthr
             if pace_threshold is not None:
-                settings_data["pace_threshold"] = pace_threshold
+                settings_data["threshold_pace"] = _pace_per_km_to_m_s(pace_threshold)
             if swim_threshold is not None:
-                settings_data["swim_threshold"] = swim_threshold
+                settings_data["threshold_pace"] = _pace_per_100m_to_m_s(swim_threshold)
 
             settings = await client.create_sport_settings(settings_data)
 

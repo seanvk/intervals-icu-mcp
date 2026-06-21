@@ -61,3 +61,82 @@ class TestPaceFormatter:
     def test_none_and_zero(self):
         assert ss._format_pace_per_km(None) is None
         assert ss._format_pace_per_km(0) is None
+
+
+class TestPaceConversion:
+    def test_min_per_km_to_m_s(self):
+        # 6:40 /km == 4.0 min/km -> 1000 / (4 * 60) == ~4.167 m/s
+        assert ss._pace_per_km_to_m_s(4.0) == 1000 / 240
+
+    def test_min_per_100m_to_m_s(self):
+        # 1:30 /100m == 1.5 min/100m -> 100 / (1.5 * 60) == ~1.111 m/s
+        assert ss._pace_per_100m_to_m_s(1.5) == 100 / 90
+
+    def test_none_and_zero(self):
+        assert ss._pace_per_km_to_m_s(None) is None
+        assert ss._pace_per_km_to_m_s(0) is None
+        assert ss._pace_per_100m_to_m_s(None) is None
+        assert ss._pace_per_100m_to_m_s(0) is None
+
+
+class TestUpdateSportSettings:
+    async def test_writes_lthr_and_threshold_pace_in_m_s(self, mock_config, respx_mock):
+        route = respx_mock.put("/athlete/i123456/sport-settings/796623").mock(
+            return_value=Response(200, json=RUN_SETTINGS)
+        )
+
+        with (
+            patch.object(ss, "load_config", return_value=mock_config),
+            patch.object(ss, "validate_credentials", return_value=True),
+        ):
+            await ss.update_sport_settings(
+                sport_id=796623, ftp=221, fthr=168, pace_threshold=4.0
+            )
+
+        body = json.loads(route.calls.last.request.content)
+        # Friendly params must map to the real API keys, not fthr/pace_threshold.
+        assert "fthr" not in body
+        assert "pace_threshold" not in body
+        assert body["ftp"] == 221
+        assert body["lthr"] == 168
+        assert body["threshold_pace"] == 1000 / 240  # 4:00 /km in m/s
+
+    async def test_swim_threshold_maps_to_threshold_pace_in_m_s(
+        self, mock_config, respx_mock
+    ):
+        route = respx_mock.put("/athlete/i123456/sport-settings/796625").mock(
+            return_value=Response(200, json=RUN_SETTINGS)
+        )
+
+        with (
+            patch.object(ss, "load_config", return_value=mock_config),
+            patch.object(ss, "validate_credentials", return_value=True),
+        ):
+            await ss.update_sport_settings(sport_id=796625, swim_threshold=1.5)
+
+        body = json.loads(route.calls.last.request.content)
+        assert "swim_threshold" not in body
+        assert body["threshold_pace"] == 100 / 90  # 1:30 /100m in m/s
+
+
+class TestCreateSportSettings:
+    async def test_writes_types_array_and_real_keys(self, mock_config, respx_mock):
+        route = respx_mock.post("/athlete/i123456/sport-settings").mock(
+            return_value=Response(200, json=RUN_SETTINGS)
+        )
+
+        with (
+            patch.object(ss, "load_config", return_value=mock_config),
+            patch.object(ss, "validate_credentials", return_value=True),
+        ):
+            await ss.create_sport_settings(
+                sport_type="Run", ftp=221, fthr=168, pace_threshold=4.0
+            )
+
+        body = json.loads(route.calls.last.request.content)
+        assert body["types"] == ["Run"]
+        assert "type" not in body
+        assert "fthr" not in body
+        assert "pace_threshold" not in body
+        assert body["lthr"] == 168
+        assert body["threshold_pace"] == 1000 / 240
