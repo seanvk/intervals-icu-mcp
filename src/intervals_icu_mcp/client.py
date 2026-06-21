@@ -1028,8 +1028,9 @@ class ICUClient:
         if oldest:
             params["oldest"] = oldest
 
+        # The Intervals API exposes this as PUT (not POST); the operation is async.
         response = await self._request(
-            "POST", f"/athlete/{athlete_id}/sport-settings/{sport_id}/apply", params=params
+            "PUT", f"/athlete/{athlete_id}/sport-settings/{sport_id}/apply", params=params
         )
         return response.json()
 

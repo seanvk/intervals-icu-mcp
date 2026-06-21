@@ -55,12 +55,21 @@ class TestGetSportSettings:
 
 
 class TestPaceFormatter:
-    def test_meters_per_second_to_min_per_km(self):
-        assert ss._format_pace_per_km(2.5) == "6:40 /km"
+    def test_default_is_per_km(self):
+        assert ss._format_pace(2.5) == "6:40 /km"
+        assert ss._format_pace(2.5, "MINS_KM") == "6:40 /km"
+
+    def test_swim_uses_per_100m(self):
+        # 0.8333 m/s == 2:00 /100m (not 20:00 /km)
+        assert ss._format_pace(0.8333333, "SECS_100M") == "2:00 /100m"
+
+    def test_mile_units(self):
+        assert ss._format_pace(2.5, "MINS_MILE") == "10:43 /mi"
 
     def test_none_and_zero(self):
-        assert ss._format_pace_per_km(None) is None
-        assert ss._format_pace_per_km(0) is None
+        assert ss._format_pace(None) is None
+        assert ss._format_pace(0) is None
+        assert ss._format_pace(0, "SECS_100M") is None
 
 
 class TestPaceConversion:
@@ -89,9 +98,7 @@ class TestUpdateSportSettings:
             patch.object(ss, "load_config", return_value=mock_config),
             patch.object(ss, "validate_credentials", return_value=True),
         ):
-            await ss.update_sport_settings(
-                sport_id=796623, ftp=221, fthr=168, pace_threshold=4.0
-            )
+            await ss.update_sport_settings(sport_id=796623, ftp=221, fthr=168, pace_threshold=4.0)
 
         body = json.loads(route.calls.last.request.content)
         # Friendly params must map to the real API keys, not fthr/pace_threshold.
@@ -101,9 +108,7 @@ class TestUpdateSportSettings:
         assert body["lthr"] == 168
         assert body["threshold_pace"] == 1000 / 240  # 4:00 /km in m/s
 
-    async def test_swim_threshold_maps_to_threshold_pace_in_m_s(
-        self, mock_config, respx_mock
-    ):
+    async def test_swim_threshold_maps_to_threshold_pace_in_m_s(self, mock_config, respx_mock):
         route = respx_mock.put("/athlete/i123456/sport-settings/796625").mock(
             return_value=Response(200, json=RUN_SETTINGS)
         )
@@ -129,9 +134,7 @@ class TestCreateSportSettings:
             patch.object(ss, "load_config", return_value=mock_config),
             patch.object(ss, "validate_credentials", return_value=True),
         ):
-            await ss.create_sport_settings(
-                sport_type="Run", ftp=221, fthr=168, pace_threshold=4.0
-            )
+            await ss.create_sport_settings(sport_type="Run", ftp=221, fthr=168, pace_threshold=4.0)
 
         body = json.loads(route.calls.last.request.content)
         assert body["types"] == ["Run"]
@@ -140,3 +143,49 @@ class TestCreateSportSettings:
         assert "pace_threshold" not in body
         assert body["lthr"] == 168
         assert body["threshold_pace"] == 1000 / 240
+
+
+SWIM_SETTINGS = {
+    "id": 796624,
+    "types": ["Swim", "OpenWaterSwim"],
+    "lthr": 168,
+    "max_hr": 185,
+    "threshold_pace": 0.8333333,  # m/s == 2:00 /100m
+    "pace_units": "SECS_100M",
+}
+
+
+class TestSwimPaceDisplay:
+    async def test_swim_threshold_pace_rendered_per_100m(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+
+        respx_mock.get("/athlete/i123456/sport-settings").mock(
+            return_value=Response(200, json=[SWIM_SETTINGS])
+        )
+
+        with (
+            patch.object(ss, "load_config", return_value=mock_config),
+            patch.object(ss, "validate_credentials", return_value=True),
+        ):
+            result = await ss.get_sport_settings(ctx=mock_ctx)
+
+        entry = json.loads(result)["data"]["sport_settings"][0]
+        assert entry["threshold_pace"] == "2:00 /100m"
+
+
+class TestApplySportSettings:
+    async def test_uses_put_method(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+
+        route = respx_mock.put("/athlete/i123456/sport-settings/796623/apply").mock(
+            return_value=Response(200, json={"id": 796623})
+        )
+
+        with (
+            patch.object(ss, "load_config", return_value=mock_config),
+            patch.object(ss, "validate_credentials", return_value=True),
+        ):
+            await ss.apply_sport_settings(sport_id=796623, ctx=mock_ctx)
+
+        assert route.called
+        assert route.calls.last.request.method == "PUT"

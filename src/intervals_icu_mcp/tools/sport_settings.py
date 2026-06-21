@@ -10,12 +10,19 @@ from ..models import SportSettings
 from ..response_builder import ResponseBuilder
 
 
-def _format_pace_per_km(meters_per_sec: float | None) -> str | None:
-    """Format an Intervals pace (meters/second) as min:sec per km."""
+def _format_pace(meters_per_sec: float | None, pace_units: str | None = None) -> str | None:
+    """Format an Intervals pace (meters/second) as min:sec, honoring the sport's
+    ``pace_units`` (e.g. ``SECS_100M`` for swimming, ``MINS_MILE``). Defaults to /km."""
     if not meters_per_sec or meters_per_sec <= 0:
         return None
-    secs_per_km = 1000 / meters_per_sec
-    return f"{int(secs_per_km // 60)}:{int(secs_per_km % 60):02d} /km"
+    units = (pace_units or "MINS_KM").upper()
+    if "100M" in units:
+        secs, suffix = 100 / meters_per_sec, "/100m"
+    elif "MILE" in units:
+        secs, suffix = 1609.344 / meters_per_sec, "/mi"
+    else:
+        secs, suffix = 1000 / meters_per_sec, "/km"
+    return f"{int(secs // 60)}:{int(secs % 60):02d} {suffix}"
 
 
 def _pace_per_km_to_m_s(pace_min_per_km: float | None) -> float | None:
@@ -49,7 +56,7 @@ def _sport_settings_summary(settings: SportSettings) -> dict[str, Any]:
     if settings.max_hr is not None:
         info["max_hr_bpm"] = settings.max_hr
     if settings.threshold_pace is not None:
-        info["threshold_pace"] = _format_pace_per_km(settings.threshold_pace)
+        info["threshold_pace"] = _format_pace(settings.threshold_pace, settings.pace_units)
         info["threshold_pace_m_s"] = settings.threshold_pace
     if settings.hr_zones:
         info["hr_zones_bpm"] = settings.hr_zones
