@@ -7,7 +7,22 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Type aliases for common enums
 ActivityType = Literal["Ride", "Run", "Swim", "Walk", "Hike", "VirtualRide", "VirtualRun", "Other"]
-EventCategory = Literal["WORKOUT", "NOTE", "RACE", "GOAL"]
+EventCategory = Literal[
+    "WORKOUT",
+    "RACE_A",
+    "RACE_B",
+    "RACE_C",
+    "NOTE",
+    "PLAN",
+    "HOLIDAY",
+    "SICK",
+    "INJURED",
+    "SET_EFTP",
+    "FITNESS_DAYS",
+    "SEASON_START",
+    "TARGET",
+    "SET_FITNESS",
+]
 
 
 # ==================== Athlete Models ====================
@@ -170,7 +185,7 @@ class Event(BaseModel):
 
     id: int
     start_date_local: str  # ISO-8601 date
-    category: str | None = None  # WORKOUT, NOTE, RACE, GOAL
+    category: str | None = None  # WORKOUT, RACE_A/B/C, NOTE, TARGET, etc.
     name: str | None = None
     description: str | None = None
     type: str | None = None

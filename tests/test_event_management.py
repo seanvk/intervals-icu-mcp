@@ -84,6 +84,45 @@ class TestCreateEvent:
         assert response["error"]["type"] == "validation_error"
 
 
+class TestEventCategories:
+    """The API enum uses RACE_A/B/C and TARGET, not RACE/GOAL."""
+
+    async def test_accepts_race_a(self, mock_config, respx_mock, mock_event_data):
+        mock_ctx = MagicMock()
+        mock_ctx.get_state.return_value = mock_config
+
+        route = respx_mock.post("/athlete/i123456/events").mock(
+            return_value=Response(200, json={**mock_event_data, "category": "RACE_A"})
+        )
+
+        await create_event(
+            start_date="2025-10-14",
+            name="Goal Race",
+            category="RACE_A",
+            ctx=mock_ctx,
+        )
+
+        assert route.called
+        sent = json.loads(route.calls.last.request.content)
+        assert sent["category"] == "RACE_A"
+
+    async def test_rejects_legacy_race_and_goal(self, mock_config, respx_mock):
+        mock_ctx = MagicMock()
+        mock_ctx.get_state.return_value = mock_config
+
+        route = respx_mock.post("/athlete/i123456/events").mock(return_value=Response(200, json={}))
+
+        for bad in ("RACE", "GOAL"):
+            result = await create_event(
+                start_date="2025-10-14",
+                name="X",
+                category=bad,
+                ctx=mock_ctx,
+            )
+            assert not route.called
+            assert json.loads(result)["error"]["type"] == "validation_error"
+
+
 class TestUpdateEvent:
     async def test_update_event_normalizes_start_date(
         self, mock_config, respx_mock, mock_event_data

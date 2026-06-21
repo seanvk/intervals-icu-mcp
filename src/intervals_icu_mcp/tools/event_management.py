@@ -9,6 +9,26 @@ from ..auth import ICUConfig
 from ..client import ICUAPIError, ICUClient
 from ..response_builder import ResponseBuilder
 
+# Valid event categories per the Intervals.icu EventEx schema. The API rejects
+# the friendlier "RACE"/"GOAL" labels with HTTP 400 — races are RACE_A/B/C and
+# goals are TARGET.
+VALID_CATEGORIES = [
+    "WORKOUT",
+    "RACE_A",
+    "RACE_B",
+    "RACE_C",
+    "NOTE",
+    "PLAN",
+    "HOLIDAY",
+    "SICK",
+    "INJURED",
+    "SET_EFTP",
+    "FITNESS_DAYS",
+    "SEASON_START",
+    "TARGET",
+    "SET_FITNESS",
+]
+
 
 def _normalize_event_date(value: str) -> str:
     """Validate an event date and normalize it to the form the Intervals API requires.
@@ -31,7 +51,11 @@ def _normalize_event_date(value: str) -> str:
 async def create_event(
     start_date: Annotated[str, "Start date in YYYY-MM-DD format"],
     name: Annotated[str, "Event name"],
-    category: Annotated[str, "Event category: WORKOUT, NOTE, RACE, or GOAL"],
+    category: Annotated[
+        str,
+        "Event category: WORKOUT, RACE_A (primary race), RACE_B (supporting race), "
+        "RACE_C (low priority race), NOTE, PLAN, HOLIDAY, SICK, INJURED, TARGET, etc.",
+    ],
     description: Annotated[str | None, "Event description (optional)"] = None,
     event_type: Annotated[str | None, "Activity type (e.g., Ride, Run, Swim)"] = None,
     duration_seconds: Annotated[int | None, "Planned duration in seconds"] = None,
@@ -47,7 +71,8 @@ async def create_event(
     Args:
         start_date: Date in ISO-8601 format (YYYY-MM-DD)
         name: Name of the event
-        category: Type of event - WORKOUT, NOTE, RACE, or GOAL
+        category: Type of event - WORKOUT, RACE_A, RACE_B, RACE_C, NOTE, TARGET, etc.
+            (RACE_A = primary/target race, RACE_B = supporting, RACE_C = low priority)
         description: Optional detailed description
         event_type: Activity type (e.g., "Ride", "Run", "Swim") for workouts
         duration_seconds: Planned duration for workouts
@@ -61,10 +86,9 @@ async def create_event(
     config: ICUConfig = ctx.get_state("config")
 
     # Validate category
-    valid_categories = ["WORKOUT", "NOTE", "RACE", "GOAL"]
-    if category.upper() not in valid_categories:
+    if category.upper() not in VALID_CATEGORIES:
         return ResponseBuilder.build_error_response(
-            f"Invalid category. Must be one of: {', '.join(valid_categories)}",
+            f"Invalid category. Must be one of: {', '.join(VALID_CATEGORIES)}",
             error_type="validation_error",
         )
 
@@ -316,7 +340,6 @@ async def bulk_create_events(
         events_data: list[dict[str, Any]] = parsed_data  # type: ignore[assignment]
 
         # Validate each event
-        valid_categories = ["WORKOUT", "NOTE", "RACE", "GOAL"]
         for i, event_data in enumerate(events_data):
             if "start_date_local" not in event_data:
                 return ResponseBuilder.build_error_response(
@@ -332,9 +355,9 @@ async def bulk_create_events(
                     f"Event {i}: Missing required field 'category'",
                     error_type="validation_error",
                 )
-            if event_data["category"].upper() not in valid_categories:
+            if event_data["category"].upper() not in VALID_CATEGORIES:
                 return ResponseBuilder.build_error_response(
-                    f"Event {i}: Invalid category. Must be one of: {', '.join(valid_categories)}",
+                    f"Event {i}: Invalid category. Must be one of: {', '.join(VALID_CATEGORIES)}",
                     error_type="validation_error",
                 )
 
