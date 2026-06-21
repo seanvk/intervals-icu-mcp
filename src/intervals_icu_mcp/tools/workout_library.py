@@ -9,6 +9,230 @@ from ..client import ICUAPIError, ICUClient
 from ..response_builder import ResponseBuilder
 
 
+def _workout_summary(workout: Any) -> dict[str, Any]:
+    """Build a readable summary of a library workout for tool responses."""
+    info: dict[str, Any] = {"id": workout.id, "name": workout.name}
+    if workout.type:
+        info["type"] = workout.type
+    if workout.folder_id:
+        info["folder_id"] = workout.folder_id
+    if workout.description:
+        info["description"] = workout.description
+
+    metrics: dict[str, Any] = {}
+    if workout.moving_time:
+        metrics["duration_seconds"] = workout.moving_time
+    if workout.distance:
+        metrics["distance_meters"] = workout.distance
+    if workout.icu_training_load:
+        metrics["training_load"] = workout.icu_training_load
+    if workout.icu_intensity:
+        metrics["intensity_factor"] = workout.icu_intensity
+    if metrics:
+        info["metrics"] = metrics
+
+    if workout.indoor is not None:
+        info["indoor"] = workout.indoor
+    if workout.color:
+        info["color"] = workout.color
+    if workout.tags:
+        info["tags"] = workout.tags
+    # The parsed structured steps (present once Intervals has parsed the description).
+    if workout.workout_doc:
+        info["workout_doc"] = workout.workout_doc
+    return info
+
+
+async def get_workout(
+    workout_id: Annotated[int, "Workout ID to fetch"],
+    ctx: Context | None = None,
+) -> str:
+    """Get a single library workout, including its structured steps (workout_doc).
+
+    Args:
+        workout_id: ID of the workout to fetch
+
+    Returns:
+        JSON string with the workout details and structure
+    """
+    assert ctx is not None
+    config: ICUConfig = ctx.get_state("config")
+
+    try:
+        async with ICUClient(config) as client:
+            workout = await client.get_workout(workout_id)
+            return ResponseBuilder.build_response(
+                data=_workout_summary(workout),
+                query_type="get_workout",
+            )
+    except ICUAPIError as e:
+        return ResponseBuilder.build_error_response(e.message, error_type="api_error")
+    except Exception as e:
+        return ResponseBuilder.build_error_response(
+            f"Unexpected error: {str(e)}", error_type="internal_error"
+        )
+
+
+async def create_workout(
+    folder_id: Annotated[int, "ID of the folder or training plan to create the workout in"],
+    name: Annotated[str, "Workout name"],
+    workout_type: Annotated[str, "Activity type (e.g., Run, Ride, Swim)"],
+    description: Annotated[
+        str | None,
+        "Workout text. Include Intervals.icu step syntax to define structure — it is "
+        "parsed server-side into steps. One step per line starting with '-', e.g.: "
+        "'- 10m Z2' (10 min in HR zone 2), '- 5x3m Z4 2m Z1' (5 reps of 3 min Z4 / 2 min Z1), "
+        "'- 10m ramp 50-75% LTHR'. Power steps use '%' of FTP; pace/HR also supported.",
+    ] = None,
+    duration_seconds: Annotated[int | None, "Planned duration in seconds"] = None,
+    distance_meters: Annotated[float | None, "Planned distance in meters"] = None,
+    training_load: Annotated[int | None, "Planned training load"] = None,
+    indoor: Annotated[bool | None, "Whether this is an indoor workout"] = None,
+    color: Annotated[str | None, "Display color (hex, e.g. '#00ff00')"] = None,
+    tags: Annotated[list[str] | None, "Tags to apply to the workout"] = None,
+    ctx: Context | None = None,
+) -> str:
+    """Create a structured workout in the athlete's library (a folder or plan).
+
+    Structure comes from the description using Intervals.icu's step syntax (parsed
+    server-side), so you don't build raw step JSON. The workout can then be dropped
+    onto the calendar as a planned session that syncs to the athlete's device.
+
+    Returns:
+        JSON string with the created workout
+    """
+    assert ctx is not None
+    config: ICUConfig = ctx.get_state("config")
+
+    try:
+        workout_data: dict[str, Any] = {
+            "folder_id": folder_id,
+            "name": name,
+            "type": workout_type,
+        }
+        if description is not None:
+            workout_data["description"] = description
+        if duration_seconds is not None:
+            workout_data["moving_time"] = duration_seconds
+        if distance_meters is not None:
+            workout_data["distance"] = distance_meters
+        if training_load is not None:
+            workout_data["icu_training_load"] = training_load
+        if indoor is not None:
+            workout_data["indoor"] = indoor
+        if color is not None:
+            workout_data["color"] = color
+        if tags is not None:
+            workout_data["tags"] = tags
+
+        async with ICUClient(config) as client:
+            workout = await client.create_workout(workout_data)
+            return ResponseBuilder.build_response(
+                data=_workout_summary(workout),
+                query_type="create_workout",
+                metadata={"message": f"Successfully created workout: {name}"},
+            )
+    except ICUAPIError as e:
+        return ResponseBuilder.build_error_response(e.message, error_type="api_error")
+    except Exception as e:
+        return ResponseBuilder.build_error_response(
+            f"Unexpected error: {str(e)}", error_type="internal_error"
+        )
+
+
+async def update_workout(
+    workout_id: Annotated[int, "Workout ID to update"],
+    name: Annotated[str | None, "Updated workout name"] = None,
+    description: Annotated[
+        str | None, "Updated description (with step syntax to restructure)"
+    ] = None,
+    workout_type: Annotated[str | None, "Updated activity type"] = None,
+    duration_seconds: Annotated[int | None, "Updated duration in seconds"] = None,
+    distance_meters: Annotated[float | None, "Updated distance in meters"] = None,
+    training_load: Annotated[int | None, "Updated training load"] = None,
+    indoor: Annotated[bool | None, "Updated indoor flag"] = None,
+    color: Annotated[str | None, "Updated display color (hex)"] = None,
+    tags: Annotated[list[str] | None, "Updated tags"] = None,
+    ctx: Context | None = None,
+) -> str:
+    """Update an existing library workout. Only provided fields are changed.
+
+    Returns:
+        JSON string with the updated workout
+    """
+    assert ctx is not None
+    config: ICUConfig = ctx.get_state("config")
+
+    workout_data: dict[str, Any] = {}
+    if name is not None:
+        workout_data["name"] = name
+    if description is not None:
+        workout_data["description"] = description
+    if workout_type is not None:
+        workout_data["type"] = workout_type
+    if duration_seconds is not None:
+        workout_data["moving_time"] = duration_seconds
+    if distance_meters is not None:
+        workout_data["distance"] = distance_meters
+    if training_load is not None:
+        workout_data["icu_training_load"] = training_load
+    if indoor is not None:
+        workout_data["indoor"] = indoor
+    if color is not None:
+        workout_data["color"] = color
+    if tags is not None:
+        workout_data["tags"] = tags
+
+    if not workout_data:
+        return ResponseBuilder.build_error_response(
+            "No fields provided to update. Specify at least one field to change.",
+            error_type="validation_error",
+        )
+
+    try:
+        async with ICUClient(config) as client:
+            workout = await client.update_workout(workout_id, workout_data)
+            return ResponseBuilder.build_response(
+                data=_workout_summary(workout),
+                query_type="update_workout",
+                metadata={"message": f"Successfully updated workout {workout_id}"},
+            )
+    except ICUAPIError as e:
+        return ResponseBuilder.build_error_response(e.message, error_type="api_error")
+    except Exception as e:
+        return ResponseBuilder.build_error_response(
+            f"Unexpected error: {str(e)}", error_type="internal_error"
+        )
+
+
+async def delete_workout(
+    workout_id: Annotated[int, "Workout ID to delete"],
+    ctx: Context | None = None,
+) -> str:
+    """Delete a library workout. This cannot be undone.
+
+    Returns:
+        JSON string with deletion confirmation
+    """
+    assert ctx is not None
+    config: ICUConfig = ctx.get_state("config")
+
+    try:
+        async with ICUClient(config) as client:
+            await client.delete_workout(workout_id)
+            return ResponseBuilder.build_response(
+                data={"workout_id": workout_id, "deleted": True},
+                query_type="delete_workout",
+                metadata={"message": f"Successfully deleted workout {workout_id}"},
+            )
+    except ICUAPIError as e:
+        return ResponseBuilder.build_error_response(e.message, error_type="api_error")
+    except Exception as e:
+        return ResponseBuilder.build_error_response(
+            f"Unexpected error: {str(e)}", error_type="internal_error"
+        )
+
+
 async def get_workout_library(
     ctx: Context | None = None,
 ) -> str:

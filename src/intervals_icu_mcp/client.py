@@ -781,6 +781,48 @@ class ICUClient:
         adapter = TypeAdapter(list[Workout])
         return adapter.validate_python(response.json())
 
+    async def get_workout(
+        self,
+        workout_id: int,
+        athlete_id: str | None = None,
+    ) -> Workout:
+        """Get a single library workout (including its structured steps)."""
+        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        response = await self._request("GET", f"/athlete/{athlete_id}/workouts/{workout_id}")
+        return Workout(**response.json())
+
+    async def create_workout(
+        self,
+        workout_data: dict[str, Any],
+        athlete_id: str | None = None,
+    ) -> Workout:
+        """Create a new library workout in a folder or plan."""
+        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        response = await self._request("POST", f"/athlete/{athlete_id}/workouts", json=workout_data)
+        return Workout(**response.json())
+
+    async def update_workout(
+        self,
+        workout_id: int,
+        workout_data: dict[str, Any],
+        athlete_id: str | None = None,
+    ) -> Workout:
+        """Update an existing library workout."""
+        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        response = await self._request(
+            "PUT", f"/athlete/{athlete_id}/workouts/{workout_id}", json=workout_data
+        )
+        return Workout(**response.json())
+
+    async def delete_workout(
+        self,
+        workout_id: int,
+        athlete_id: str | None = None,
+    ) -> None:
+        """Delete a library workout."""
+        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        await self._request("DELETE", f"/athlete/{athlete_id}/workouts/{workout_id}")
+
     # ==================== Event Write Operations ====================
 
     async def create_event(
