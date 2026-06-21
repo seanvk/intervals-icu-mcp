@@ -9,6 +9,7 @@ from intervals_icu_mcp.tools.workout_library import (
     create_workout,
     delete_workout,
     get_workout,
+    get_workouts_in_folder,
     update_workout,
 )
 
@@ -99,3 +100,25 @@ class TestDeleteWorkout:
 
         assert route.called
         assert json.loads(result)["data"]["deleted"] is True
+
+
+class TestGetWorkoutsInFolder:
+    async def test_lists_workouts_endpoint_and_filters_by_folder(self, mock_config, respx_mock):
+        # The /folders/{id}/workouts endpoint is PUT-only; listing must use GET /workouts.
+        route = respx_mock.get("/athlete/i123456/workouts").mock(
+            return_value=Response(
+                200,
+                json=[
+                    {"id": 1, "name": "A", "folder_id": 10},
+                    {"id": 2, "name": "B", "folder_id": 99},
+                    {"id": 3, "name": "C", "folder_id": 10},
+                ],
+            )
+        )
+
+        result = await get_workouts_in_folder(folder_id=10, ctx=_ctx(mock_config))
+
+        assert route.called
+        data = json.loads(result)["data"]
+        ids = {w["id"] for w in data["workouts"]}
+        assert ids == {1, 3}

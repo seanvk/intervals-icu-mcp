@@ -762,6 +762,16 @@ class ICUClient:
 
     # ==================== Workout Library Endpoints ====================
 
+    async def list_workouts(
+        self,
+        athlete_id: str | None = None,
+    ) -> list[Workout]:
+        """List all workouts in the athlete's library."""
+        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
+        response = await self._request("GET", f"/athlete/{athlete_id}/workouts")
+        adapter = TypeAdapter(list[Workout])
+        return adapter.validate_python(response.json())
+
     async def get_workouts_in_folder(
         self,
         folder_id: int,
@@ -769,17 +779,18 @@ class ICUClient:
     ) -> list[Workout]:
         """Get workouts in a specific folder.
 
+        The API has no GET for ``/folders/{id}/workouts`` (only PUT), so this lists
+        the whole library via ``GET /workouts`` and filters by ``folder_id``.
+
         Args:
             folder_id: Folder ID
             athlete_id: Athlete ID (uses config default if not provided)
 
         Returns:
-            List of Workout objects
+            List of Workout objects in the folder
         """
-        athlete_id = athlete_id or self.config.intervals_icu_athlete_id
-        response = await self._request("GET", f"/athlete/{athlete_id}/folders/{folder_id}/workouts")
-        adapter = TypeAdapter(list[Workout])
-        return adapter.validate_python(response.json())
+        workouts = await self.list_workouts(athlete_id)
+        return [w for w in workouts if w.folder_id == folder_id]
 
     async def get_workout(
         self,

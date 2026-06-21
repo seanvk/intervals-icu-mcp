@@ -79,10 +79,14 @@ async def create_workout(
     workout_type: Annotated[str, "Activity type (e.g., Run, Ride, Swim)"],
     description: Annotated[
         str | None,
-        "Workout text. Include Intervals.icu step syntax to define structure — it is "
-        "parsed server-side into steps. One step per line starting with '-', e.g.: "
-        "'- 10m Z2' (10 min in HR zone 2), '- 5x3m Z4 2m Z1' (5 reps of 3 min Z4 / 2 min Z1), "
-        "'- 10m ramp 50-75% LTHR'. Power steps use '%' of FTP; pace/HR also supported.",
+        "Workout text with optional structured steps Intervals.icu parses server-side. "
+        "Each step is a line '- <label> <duration> <target>'. Duration: 12m, 90s, 1h. "
+        "Target: HR as '70-83% LTHR', power as '60-80%' (%FTP), pace, or a zone like 'Z2' "
+        "(zones default to power when an FTP is set). Repeats: a BLANK LINE, then a line "
+        "'Nx' (e.g. '5x'), then the '- ' step lines to repeat, then another BLANK LINE. "
+        "The surrounding blank lines are required for the repeat to expand. "
+        "HR example:\\n- Warm up 12m 65-83% LTHR\\n\\n5x\\n- Hard 3m 95-100% LTHR\\n"
+        "- Easy 2m 65-70% LTHR\\n\\n- Cool Down 8m 65-70% LTHR",
     ] = None,
     duration_seconds: Annotated[int | None, "Planned duration in seconds"] = None,
     distance_meters: Annotated[float | None, "Planned distance in meters"] = None,
@@ -144,7 +148,9 @@ async def update_workout(
     workout_id: Annotated[int, "Workout ID to update"],
     name: Annotated[str | None, "Updated workout name"] = None,
     description: Annotated[
-        str | None, "Updated description (with step syntax to restructure)"
+        str | None,
+        "Updated description. Same step syntax as create_workout: steps like "
+        "'- 12m 70-83% LTHR'; repeats via an 'Nx' line followed by '- ' steps.",
     ] = None,
     workout_type: Annotated[str | None, "Updated activity type"] = None,
     duration_seconds: Annotated[int | None, "Updated duration in seconds"] = None,
