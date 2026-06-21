@@ -389,6 +389,13 @@ class ActivityStreams(BaseModel):
     moving: list[bool | None] | None = None
     grade_smooth: list[float | None] | None = None
 
+    @classmethod
+    def from_api(cls, data: Any) -> "ActivityStreams":
+        """Build from the Intervals API, which returns a list of {type, data} objects."""
+        if isinstance(data, list):
+            data = {s["type"]: s.get("data") for s in data if isinstance(s, dict) and s.get("type")}
+        return cls(**data)
+
 
 # ==================== Best Efforts Models ====================
 
@@ -454,7 +461,7 @@ class HistogramBin(BaseModel):
 
     min: float  # Minimum value for this bin
     max: float  # Maximum value for this bin
-    count: int  # Number of data points in this bin
+    count: int | None = None  # Number of data points (not always returned)
     secs: int | None = None  # Time spent in this bin (seconds)
 
 
@@ -464,3 +471,16 @@ class Histogram(BaseModel):
     bins: list[HistogramBin] = Field(default_factory=list[HistogramBin])
     total_count: int | None = None
     total_secs: int | None = None
+
+    @classmethod
+    def from_api(cls, data: Any) -> "Histogram":
+        """Build from the Intervals API, which returns a bare list of bins ({min, max, secs})."""
+        bins = data if isinstance(data, list) else data.get("bins", [])
+        hist = cls(bins=bins)
+        if hist.total_secs is None:
+            secs = [b.secs for b in hist.bins if b.secs is not None]
+            hist.total_secs = sum(secs) if secs else None
+        if hist.total_count is None:
+            counts = [b.count for b in hist.bins if b.count is not None]
+            hist.total_count = sum(counts) if counts else None
+        return hist

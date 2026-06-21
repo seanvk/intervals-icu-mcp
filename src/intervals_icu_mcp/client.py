@@ -358,7 +358,7 @@ class ICUClient:
             Histogram with power distribution bins
         """
         response = await self._request("GET", f"/activity/{activity_id}/power-histogram")
-        return Histogram(**response.json())
+        return Histogram.from_api(response.json())
 
     async def get_hr_histogram(
         self,
@@ -373,7 +373,7 @@ class ICUClient:
             Histogram with HR distribution bins
         """
         response = await self._request("GET", f"/activity/{activity_id}/hr-histogram")
-        return Histogram(**response.json())
+        return Histogram.from_api(response.json())
 
     async def get_pace_histogram(
         self,
@@ -388,7 +388,7 @@ class ICUClient:
             Histogram with pace distribution bins
         """
         response = await self._request("GET", f"/activity/{activity_id}/pace-histogram")
-        return Histogram(**response.json())
+        return Histogram.from_api(response.json())
 
     async def get_gap_histogram(
         self,
@@ -403,7 +403,7 @@ class ICUClient:
             Histogram with GAP distribution bins
         """
         response = await self._request("GET", f"/activity/{activity_id}/gap-histogram")
-        return Histogram(**response.json())
+        return Histogram.from_api(response.json())
 
     # ==================== Wellness Endpoints ====================
 
@@ -706,7 +706,7 @@ class ICUClient:
             params["types"] = ",".join(streams)
 
         response = await self._request("GET", f"/activity/{activity_id}/streams", params=params)
-        return ActivityStreams(**response.json())
+        return ActivityStreams.from_api(response.json())
 
     async def get_best_efforts(
         self,
